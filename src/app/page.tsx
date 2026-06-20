@@ -53,7 +53,7 @@ function AsciiTitle({ light }: { light: boolean }) {
       const w = canvas.width;
       const h = canvas.height;
 
-      const text = "an ascii animation library.";
+      const text = "ascii animation showcase.";
       const fontSize = Math.min(w / (text.length * 0.62), h * 0.6);
 
       const offscreen = document.createElement("canvas");
