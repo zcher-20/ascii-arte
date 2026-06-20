@@ -154,6 +154,84 @@ function AsciiLabel({ text, light }: { text: string; light: boolean }) {
   return <canvas ref={canvasRef} className="w-full" style={{ height: "120px" }} />;
 }
 
+function FilmStrip({ light, cardBg, cardBorder }: { light: boolean; cardBg: string; cardBorder: string }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    const track = trackRef.current;
+    if (!track) return;
+    dragging.current = true;
+    startX.current = e.clientX;
+    scrollLeft.current = track.scrollLeft;
+    track.style.cursor = "grabbing";
+    track.setPointerCapture(e.pointerId);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragging.current || !trackRef.current) return;
+    const dx = e.clientX - startX.current;
+    trackRef.current.scrollLeft = scrollLeft.current - dx;
+  };
+
+  const onPointerUp = () => {
+    dragging.current = false;
+    if (trackRef.current) trackRef.current.style.cursor = "grab";
+  };
+
+  const cards = [
+    { num: "( 01. )", comp: <AsciiSwirl /> },
+    { num: "( 02. )", comp: <AsciiFireworks /> },
+    { num: "( 03. )", comp: <AsciiRain /> },
+    { num: "( 04. )", comp: <AsciiFireplace /> },
+  ];
+
+  return (
+    <div
+      ref={trackRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerUp}
+      style={{
+        display: "flex",
+        gap: "20px",
+        overflowX: "auto",
+        padding: "0 calc(50vw - 40vw)",
+        cursor: "grab",
+        scrollbarWidth: "none",
+        position: "relative",
+        zIndex: 1,
+        scrollBehavior: dragging.current ? "auto" : "smooth",
+      }}
+      className="[&::-webkit-scrollbar]:hidden"
+    >
+      {cards.map(({ num, comp }) => (
+        <div key={num} style={{ flex: "0 0 75vw", maxWidth: "900px" }}>
+          <div style={{ textAlign: "center", marginBottom: "12px", fontSize: "11px", letterSpacing: "2px", color: light ? "#333" : "#fff", opacity: 0.6 }} className="font-[family-name:var(--font-inter)]">
+            {num}
+          </div>
+          <div
+            className="rounded overflow-hidden relative"
+            style={{
+              background: cardBg,
+              border: `1px solid ${cardBorder}`,
+              transition: "background 0.5s ease, border-color 0.5s ease",
+              aspectRatio: "16/9",
+              width: "100%",
+            }}
+          >
+            {comp}
+            <CornerSparkles light={light} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Home() {
   const [bgColor, setBgColor] = useState("#000000");
   const [textColor, setTextColor] = useState("#ffffff");
@@ -187,35 +265,22 @@ export default function Home() {
         />
       </section>
 
-      <section className="relative" style={{ width: "100%", background: sectionBg, paddingTop: "80px", paddingBottom: "80px", transition: "background 0.5s ease" }}>
+      <section className="relative" style={{ width: "100%", background: sectionBg, paddingTop: "80px", paddingBottom: "80px", transition: "background 0.5s ease", overflow: "hidden" }}>
         <Sparkles light={light} />
 
-        <div style={{ padding: "0 24px", marginBottom: "64px", textAlign: "center", position: "relative", zIndex: 1 }}>
+        <div style={{ padding: "0 24px", marginBottom: "48px", textAlign: "center", position: "relative", zIndex: 1 }}>
           <AsciiTitle light={light} />
         </div>
 
-        <div style={{ maxWidth: "960px", margin: "0 auto", padding: "0 48px", position: "relative", zIndex: 1 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
-            {[
-              { num: "( 01. )", comp: <AsciiSwirl /> },
-              { num: "( 02. )", comp: <AsciiFireworks /> },
-              { num: "( 03. )", comp: <AsciiRain /> },
-              { num: "( 04. )", comp: <AsciiFireplace /> },
-            ].map(({ num, comp }) => (
-              <div key={num}>
-                <div style={{ textAlign: "center", marginBottom: "10px", fontSize: "11px", letterSpacing: "2px", color: light ? "#333" : "#fff", opacity: 0.6 }} className="font-[family-name:var(--font-inter)]">
-                  {num}
-                </div>
-                <div className="aspect-[16/9] rounded overflow-hidden relative" style={{ background: cardBg, border: `1px solid ${cardBorder}`, transition: "background 0.5s ease, border-color 0.5s ease" }}>
-                  {comp}
-                  <CornerSparkles light={light} />
-                </div>
-              </div>
-            ))}
-          </div>
+        <FilmStrip light={light} cardBg={cardBg} cardBorder={cardBorder} />
+
+        <div style={{ textAlign: "center", marginTop: "24px", position: "relative", zIndex: 1 }}>
+          <span style={{ fontSize: "11px", letterSpacing: "3px", color: light ? "#999" : "#555", fontFamily: "monospace" }}>
+            ← drag →
+          </span>
         </div>
 
-        <div style={{ padding: "0 24px", marginTop: "64px", textAlign: "center" }}>
+        <div style={{ padding: "0 24px", marginTop: "48px", textAlign: "center", position: "relative", zIndex: 1 }}>
           <a href="https://github.com/zcher-20" target="_blank" rel="noopener noreferrer" style={{ display: "block", cursor: "pointer" }}>
             <AsciiLabel text="github repo" light={light} />
           </a>
