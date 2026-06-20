@@ -25,9 +25,11 @@ export default function ParticleFlow() {
   const mouseRef = useRef({ x: -1, y: -1, active: false });
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const overlay = overlayRef.current;
-    if (!canvas || !overlay) return;
+    const canvasEl = canvasRef.current;
+    const overlayEl = overlayRef.current;
+    if (!canvasEl || !overlayEl) return;
+    const canvas = canvasEl;
+    const overlay = overlayEl;
     const ctx = canvas.getContext("2d")!;
     const octx = overlay.getContext("2d")!;
 
