@@ -4,16 +4,7 @@ import { useEffect, useRef } from "react";
 
 const CHARS = "abcdefghijklmnopqrstuvwxyz0123456789@#$%&*+=-:;.,";
 
-interface RainDrop {
-  col: number;
-  y: number;
-  speed: number;
-  length: number;
-  chars: string[];
-  mutateRate: number;
-}
-
-interface TopParticle {
+interface Particle {
   x: number;
   y: number;
   char: string;
@@ -22,12 +13,20 @@ interface TopParticle {
   flickerPhase: number;
 }
 
-export default function HeroRain({ color = "#ffd4de", bgColor = "#000000" }: { color?: string; bgColor?: string }) {
+interface RisingStream {
+  col: number;
+  y: number;
+  speed: number;
+  length: number;
+  chars: string[];
+}
+
+export default function BottomCloud({ color = "#ffd4de", light = false }: { color?: string; light?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const colorRef = useRef(color);
   colorRef.current = color;
-  const bgRef = useRef(bgColor);
-  bgRef.current = bgColor;
+  const lightRef = useRef(light);
+  lightRef.current = light;
   const rafRef = useRef<number>(0);
 
   useEffect(() => {
@@ -46,52 +45,57 @@ export default function HeroRain({ color = "#ffd4de", bgColor = "#000000" }: { c
     let cols = Math.floor(w / colWidth);
     let rows = Math.floor(h / fontSize);
 
-    const streams: RainDrop[] = [];
-    const topParticles: TopParticle[] = [];
+    const particles: Particle[] = [];
+    const streams: RisingStream[] = [];
 
-    function spawnStream(col?: number, fromTop = false): RainDrop {
-      const c = col ?? Math.floor(Math.random() * cols);
-      const len = 5 + Math.floor(Math.random() * 20);
-      const chars: string[] = [];
-      for (let i = 0; i < len; i++) {
-        chars.push(CHARS[Math.floor(Math.random() * CHARS.length)]);
-      }
-      return {
-        col: c,
-        y: fromTop ? -Math.floor(Math.random() * 10) : Math.floor(Math.random() * rows),
-        speed: 0.5 + Math.random() * 0.8,
-        length: len,
-        chars,
-        mutateRate: 0.02 + Math.random() * 0.04,
-      };
-    }
+    function build() {
+      particles.length = 0;
+      streams.length = 0;
+      cols = Math.floor(w / colWidth);
+      rows = Math.floor(h / fontSize);
 
-    function buildTopCloud() {
-      topParticles.length = 0;
       const density = Math.floor(w * 0.3);
       for (let i = 0; i < density; i++) {
         const yBias = Math.random() * Math.random();
-        topParticles.push({
+        particles.push({
           x: Math.random() * w,
-          y: yBias * h * 0.25,
+          y: h - yBias * h * 0.25,
           char: CHARS[Math.floor(Math.random() * CHARS.length)],
           alpha: 0.1 + Math.random() * 0.25,
           flickerSpeed: 1 + Math.random() * 3,
           flickerPhase: Math.random() * Math.PI * 2,
         });
       }
+
+      const streamCount = Math.floor(cols * 0.2);
+      for (let i = 0; i < streamCount; i++) {
+        streams.push(spawnStream());
+      }
     }
 
-    const streamCount = Math.floor(cols * 0.35);
-    for (let i = 0; i < streamCount; i++) {
-      streams.push(spawnStream());
+    function spawnStream(): RisingStream {
+      const isLong = Math.random() < 0.2;
+      const len = isLong
+        ? 20 + Math.floor(Math.random() * 25)
+        : 3 + Math.floor(Math.random() * 10);
+      const chars: string[] = [];
+      for (let i = 0; i < len; i++) {
+        chars.push(CHARS[Math.floor(Math.random() * CHARS.length)]);
+      }
+      return {
+        col: Math.floor(Math.random() * cols),
+        y: rows + Math.floor(Math.random() * 5),
+        speed: isLong ? 0.2 + Math.random() * 0.3 : 0.3 + Math.random() * 0.5,
+        length: len,
+        chars,
+      };
     }
-    buildTopCloud();
+
+    build();
 
     function animate(time: number) {
-      const b = bgRef.current;
-      const isLight = b === "#ffffff" || b === "#fff";
-      ctx.fillStyle = isLight ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)";
+      const isLight = lightRef.current;
+      ctx.fillStyle = isLight ? "rgba(255,255,255,0.12)" : "rgba(10,10,10,0.12)";
       ctx.fillRect(0, 0, w, h);
 
       ctx.font = `${fontSize}px monospace`;
@@ -101,46 +105,36 @@ export default function HeroRain({ color = "#ffd4de", bgColor = "#000000" }: { c
       const c = colorRef.current;
       const t = time * 0.001;
 
-      // top concentrated cloud
-      for (let i = 0; i < topParticles.length; i++) {
-        const p = topParticles[i];
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
         const flicker = Math.sin(t * p.flickerSpeed + p.flickerPhase);
         const a = p.alpha * (0.5 + flicker * 0.5);
         if (a < 0.01) continue;
-
         ctx.globalAlpha = a;
         ctx.fillStyle = c;
         ctx.fillText(p.char, p.x, p.y);
-
         if (Math.random() < 0.003) {
           p.char = CHARS[Math.floor(Math.random() * CHARS.length)];
         }
       }
 
-      // falling streams
       for (let s = streams.length - 1; s >= 0; s--) {
         const stream = streams[s];
-        stream.y += stream.speed;
+        stream.y -= stream.speed;
 
         for (let i = 0; i < stream.length; i++) {
-          const row = Math.floor(stream.y) - i;
+          const row = Math.floor(stream.y) + i;
           if (row < 0 || row >= rows) continue;
-
           const x = stream.col * colWidth + colWidth / 2;
           const y = row * fontSize;
-
-          if (Math.random() < stream.mutateRate) {
-            stream.chars[i] = CHARS[Math.floor(Math.random() * CHARS.length)];
-          }
-
           const fade = 1 - i / stream.length;
           ctx.fillStyle = c;
-          ctx.globalAlpha = fade * 0.35;
+          ctx.globalAlpha = fade * 0.25;
           ctx.fillText(stream.chars[i], x, y);
         }
 
-        if (Math.floor(stream.y) - stream.length > rows) {
-          streams[s] = spawnStream(undefined, true);
+        if (Math.floor(stream.y) + stream.length < 0) {
+          streams[s] = spawnStream();
         }
       }
 
@@ -156,9 +150,7 @@ export default function HeroRain({ color = "#ffd4de", bgColor = "#000000" }: { c
       canvas.height = r.height;
       w = canvas.width;
       h = canvas.height;
-      cols = Math.floor(w / colWidth);
-      rows = Math.floor(h / fontSize);
-      buildTopCloud();
+      build();
     };
     window.addEventListener("resize", onResize, { passive: true });
 
@@ -168,5 +160,5 @@ export default function HeroRain({ color = "#ffd4de", bgColor = "#000000" }: { c
     };
   }, []);
 
-  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />;
+  return <canvas ref={canvasRef} style={{ width: "100%", height: "280px", display: "block" }} />;
 }
