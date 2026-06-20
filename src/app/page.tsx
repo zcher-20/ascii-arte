@@ -8,7 +8,9 @@ import AsciiSwirl from "@/components/AsciiSwirl";
 import AsciiRain from "@/components/AsciiRain";
 import AsciiFireplace from "@/components/AsciiFireplace";
 import HeroRain from "@/components/HeroRain";
+import BottomCloud from "@/components/BottomCloud";
 import Sparkles from "@/components/Sparkles";
+import AsciiGenerator from "@/components/AsciiGenerator";
 import CornerSparkles from "@/components/CornerSparkles";
 
 function CornerFrame({ color }: { color: string }) {
@@ -73,7 +75,7 @@ function AsciiTitle({ light }: { light: boolean }) {
       ctx.font = "5px monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = light ? "#222" : "#ffd4de";
+      ctx.fillStyle = light ? "#222" : "#ffffff";
 
       for (let y = 0; y < h; y += gap) {
         for (let x = 0; x < w; x += gap) {
@@ -156,78 +158,96 @@ function AsciiLabel({ text, light }: { text: string; light: boolean }) {
 
 function FilmStrip({ light, cardBg, cardBorder }: { light: boolean; cardBg: string; cardBorder: string }) {
   const trackRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-  const startX = useRef(0);
-  const scrollLeft = useRef(0);
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    const track = trackRef.current;
-    if (!track) return;
-    dragging.current = true;
-    startX.current = e.clientX;
-    scrollLeft.current = track.scrollLeft;
-    track.style.cursor = "grabbing";
-    track.setPointerCapture(e.pointerId);
-  };
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragging.current || !trackRef.current) return;
-    const dx = e.clientX - startX.current;
-    trackRef.current.scrollLeft = scrollLeft.current - dx;
-  };
-
-  const onPointerUp = () => {
-    dragging.current = false;
-    if (trackRef.current) trackRef.current.style.cursor = "grab";
-  };
 
   const cards = [
-    { num: "( 01. )", comp: <AsciiSwirl /> },
-    { num: "( 02. )", comp: <AsciiFireworks /> },
-    { num: "( 03. )", comp: <AsciiRain /> },
-    { num: "( 04. )", comp: <AsciiFireplace /> },
+    { num: "( 01. )", comp: <AsciiRain /> },
+    { num: "( 02. )", comp: <AsciiFireplace /> },
+    { num: "( 03. )", comp: <AsciiFireworks /> },
+    { num: "( 04. )", comp: <AsciiSwirl /> },
   ];
 
+  const scroll = (dir: number) => {
+    const track = trackRef.current;
+    if (!track) return;
+    const cardWidth = track.querySelector<HTMLElement>("[data-card]")?.offsetWidth || 400;
+    track.scrollBy({ left: dir * (cardWidth + 20), behavior: "smooth" });
+  };
+
+  const arrowColor = light ? "#333" : "#fff";
+
   return (
-    <div
-      ref={trackRef}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerLeave={onPointerUp}
-      style={{
-        display: "flex",
-        gap: "20px",
-        overflowX: "auto",
-        padding: "0 calc(50vw - 40vw)",
-        cursor: "grab",
-        scrollbarWidth: "none",
-        position: "relative",
-        zIndex: 1,
-        scrollBehavior: dragging.current ? "auto" : "smooth",
-      }}
-      className="[&::-webkit-scrollbar]:hidden"
-    >
-      {cards.map(({ num, comp }) => (
-        <div key={num} style={{ flex: "0 0 75vw", maxWidth: "900px" }}>
-          <div style={{ textAlign: "center", marginBottom: "12px", fontSize: "11px", letterSpacing: "2px", color: light ? "#333" : "#fff", opacity: 0.6 }} className="font-[family-name:var(--font-inter)]">
-            {num}
+    <div style={{ position: "relative", zIndex: 1 }}>
+      <div
+        ref={trackRef}
+        style={{
+          display: "flex",
+          gap: "20px",
+          overflowX: "hidden",
+          padding: "0 calc(50vw - 20vw)",
+          scrollbarWidth: "none",
+        }}
+        className="[&::-webkit-scrollbar]:hidden"
+      >
+        {cards.map(({ num, comp }) => (
+          <div key={num} data-card style={{ flex: "0 0 40vw", maxWidth: "500px" }}>
+            <div style={{ textAlign: "center", marginBottom: "12px", fontSize: "11px", letterSpacing: "2px", color: arrowColor, opacity: 0.6 }} className="font-[family-name:var(--font-inter)]">
+              {num}
+            </div>
+            <div
+              className="rounded overflow-hidden relative"
+              style={{
+                background: cardBg,
+                border: `1px solid ${cardBorder}`,
+                transition: "background 0.5s ease, border-color 0.5s ease",
+                aspectRatio: "16/9",
+                width: "100%",
+              }}
+            >
+              {comp}
+              <CornerSparkles light={light} />
+            </div>
           </div>
-          <div
-            className="rounded overflow-hidden relative"
-            style={{
-              background: cardBg,
-              border: `1px solid ${cardBorder}`,
-              transition: "background 0.5s ease, border-color 0.5s ease",
-              aspectRatio: "16/9",
-              width: "100%",
-            }}
-          >
-            {comp}
-            <CornerSparkles light={light} />
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "center", gap: "32px", marginTop: "20px" }}>
+        <button
+          onClick={() => scroll(-1)}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "18px",
+            fontFamily: "monospace",
+            color: arrowColor,
+            opacity: 0.5,
+            transition: "opacity 0.2s",
+            padding: "4px 12px",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.5"; }}
+        >
+          ←
+        </button>
+        <button
+          onClick={() => scroll(1)}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "18px",
+            fontFamily: "monospace",
+            color: arrowColor,
+            opacity: 0.5,
+            transition: "opacity 0.2s",
+            padding: "4px 12px",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.5"; }}
+        >
+          →
+        </button>
+      </div>
     </div>
   );
 }
@@ -274,18 +294,24 @@ export default function Home() {
 
         <FilmStrip light={light} cardBg={cardBg} cardBorder={cardBorder} />
 
-        <div style={{ textAlign: "center", marginTop: "24px", position: "relative", zIndex: 1 }}>
-          <span style={{ fontSize: "11px", letterSpacing: "3px", color: light ? "#999" : "#555", fontFamily: "monospace" }}>
-            ← drag →
-          </span>
+        <div style={{ padding: "0 24px", marginTop: "64px", marginBottom: "48px", textAlign: "center", position: "relative", zIndex: 1 }}>
+          <AsciiLabel text="generate" light={light} />
         </div>
 
-        <div style={{ padding: "0 24px", marginTop: "48px", textAlign: "center", position: "relative", zIndex: 1 }}>
+        <div style={{ position: "relative", zIndex: 1, marginBottom: "64px" }}>
+          <AsciiGenerator light={light} />
+        </div>
+
+      </section>
+
+      <div style={{ position: "relative", background: sectionBg, transition: "background 0.5s ease" }}>
+        <BottomCloud color={light ? "rgba(0,0,0,0.15)" : "#ffd4de"} light={light} />
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 2, padding: "0 24px", textAlign: "center", width: "100%" }}>
           <a href="https://github.com/zcher-20" target="_blank" rel="noopener noreferrer" style={{ display: "block", cursor: "pointer" }}>
             <AsciiLabel text="github repo" light={light} />
           </a>
         </div>
-      </section>
+      </div>
 
       <footer style={{ width: "100%", background: sectionBg, borderTop: `1px solid ${footerBorder}`, padding: "32px 0", transition: "background 0.5s ease" }}>
         <div style={{ maxWidth: "960px", margin: "0 auto", padding: "0 48px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: footerText }} className="font-[family-name:var(--font-inter)]">
