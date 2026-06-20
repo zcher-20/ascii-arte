@@ -38,6 +38,21 @@ function CornerFrame({ color }: { color: string }) {
   );
 }
 
+function Reveal({ children, className = "", style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) el.classList.add("is-visible"); },
+      { threshold: 0.1 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return <div ref={ref} className={`reveal ${className}`} style={style}>{children}</div>;
+}
+
 function AsciiTitle({ light }: { light: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -157,7 +172,7 @@ function AsciiLabel({ text, light }: { text: string; light: boolean }) {
 }
 
 function FilmStrip({ light, cardBg, cardBorder }: { light: boolean; cardBg: string; cardBorder: string }) {
-  const trackRef = useRef<HTMLDivElement>(null);
+  const [index, setIndex] = useState(0);
 
   const cards = [
     { num: "( 01. )", comp: <AsciiRain /> },
@@ -166,53 +181,50 @@ function FilmStrip({ light, cardBg, cardBorder }: { light: boolean; cardBg: stri
     { num: "( 04. )", comp: <AsciiSwirl /> },
   ];
 
-  const scroll = (dir: number) => {
-    const track = trackRef.current;
-    if (!track) return;
-    const cardWidth = track.querySelector<HTMLElement>("[data-card]")?.offsetWidth || 400;
-    track.scrollBy({ left: dir * (cardWidth + 20), behavior: "smooth" });
-  };
+  const gap = 20;
+  const prev = () => setIndex((i) => Math.max(i - 1, 0));
+  const next = () => setIndex((i) => Math.min(i + 1, cards.length - 1));
 
   const arrowColor = light ? "#333" : "#fff";
 
   return (
     <div style={{ position: "relative", zIndex: 1 }}>
-      <div
-        ref={trackRef}
-        style={{
-          display: "flex",
-          gap: "20px",
-          overflowX: "hidden",
-          padding: "0 calc(50vw - 20vw)",
-          scrollbarWidth: "none",
-        }}
-        className="[&::-webkit-scrollbar]:hidden"
-      >
-        {cards.map(({ num, comp }) => (
-          <div key={num} data-card style={{ flex: "0 0 40vw", maxWidth: "500px" }}>
-            <div style={{ textAlign: "center", marginBottom: "12px", fontSize: "11px", letterSpacing: "2px", color: arrowColor, opacity: 0.6 }} className="font-[family-name:var(--font-inter)]">
-              {num}
+      <div style={{ overflow: "hidden", width: "100%" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: `${gap}px`,
+            transform: `translate3d(calc(50vw - 20vw - ${index} * (40vw + ${gap}px)), 0, 0)`,
+            transition: "transform 850ms cubic-bezier(0.16, 1, 0.3, 1)",
+            willChange: "transform",
+          }}
+        >
+          {cards.map(({ num, comp }, i) => (
+            <div key={num} style={{ flex: `0 0 40vw`, maxWidth: "500px" }}>
+              <div style={{ textAlign: "center", marginBottom: "12px", fontSize: "11px", letterSpacing: "2px", color: arrowColor, opacity: 0.6 }} className="font-[family-name:var(--font-inter)]">
+                {num}
+              </div>
+              <div
+                className="rounded overflow-hidden relative"
+                style={{
+                  background: cardBg,
+                  border: `1px solid ${cardBorder}`,
+                  transition: "background 0.5s ease, border-color 0.5s ease",
+                  aspectRatio: "16/9",
+                  width: "100%",
+                }}
+              >
+                {comp}
+                <CornerSparkles light={light} />
+              </div>
             </div>
-            <div
-              className="rounded overflow-hidden relative"
-              style={{
-                background: cardBg,
-                border: `1px solid ${cardBorder}`,
-                transition: "background 0.5s ease, border-color 0.5s ease",
-                aspectRatio: "16/9",
-                width: "100%",
-              }}
-            >
-              {comp}
-              <CornerSparkles light={light} />
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "center", gap: "32px", marginTop: "20px" }}>
         <button
-          onClick={() => scroll(-1)}
+          onClick={prev}
           style={{
             background: "none",
             border: "none",
@@ -230,7 +242,7 @@ function FilmStrip({ light, cardBg, cardBorder }: { light: boolean; cardBg: stri
           ←
         </button>
         <button
-          onClick={() => scroll(1)}
+          onClick={next}
           style={{
             background: "none",
             border: "none",
@@ -273,7 +285,7 @@ export default function Home() {
         style={{ height: "100vh", background: bg, transition: "background 0.5s ease" }}
       >
         <HeroRain color={light ? "rgba(0,0,0,0.15)" : "#ffd4de"} bgColor={bg} />
-        <div className="absolute inset-0">
+        <div className="absolute inset-0 hero-title">
           <CornerFrame color={fg} />
           <AsciiCanvas textColor={fg} />
         </div>
@@ -288,30 +300,32 @@ export default function Home() {
       <section className="relative" style={{ width: "100%", background: sectionBg, paddingTop: "80px", paddingBottom: "80px", transition: "background 0.5s ease", overflow: "hidden" }}>
         <Sparkles light={light} />
 
-        <div style={{ padding: "0 24px", marginBottom: "48px", textAlign: "center", position: "relative", zIndex: 1 }}>
+        <Reveal style={{ padding: "0 24px", marginBottom: "48px", textAlign: "center", position: "relative", zIndex: 1 }}>
           <AsciiTitle light={light} />
-        </div>
+        </Reveal>
 
-        <FilmStrip light={light} cardBg={cardBg} cardBorder={cardBorder} />
+        <Reveal style={{ position: "relative", zIndex: 1 }}>
+          <FilmStrip light={light} cardBg={cardBg} cardBorder={cardBorder} />
+        </Reveal>
 
-        <div style={{ padding: "0 24px", marginTop: "64px", marginBottom: "48px", textAlign: "center", position: "relative", zIndex: 1 }}>
+        <Reveal style={{ padding: "0 24px", marginTop: "64px", marginBottom: "48px", textAlign: "center", position: "relative", zIndex: 1 }}>
           <AsciiLabel text="generate" light={light} />
-        </div>
+        </Reveal>
 
-        <div style={{ position: "relative", zIndex: 1, marginBottom: "64px" }}>
+        <Reveal style={{ position: "relative", zIndex: 1, marginBottom: "64px" }}>
           <AsciiGenerator light={light} />
-        </div>
+        </Reveal>
 
       </section>
 
-      <div style={{ position: "relative", background: sectionBg, transition: "background 0.5s ease" }}>
+      <Reveal style={{ position: "relative", background: sectionBg, transition: "background 0.5s ease" }}>
         <BottomCloud color={light ? "rgba(0,0,0,0.15)" : "#ffd4de"} light={light} />
         <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 2, padding: "0 24px", textAlign: "center", width: "100%" }}>
           <a href="https://github.com/zcher-20" target="_blank" rel="noopener noreferrer" style={{ display: "block", cursor: "pointer" }}>
             <AsciiLabel text="github repo" light={light} />
           </a>
         </div>
-      </div>
+      </Reveal>
 
       <footer style={{ width: "100%", background: sectionBg, borderTop: `1px solid ${footerBorder}`, padding: "32px 0", transition: "background 0.5s ease" }}>
         <div style={{ maxWidth: "960px", margin: "0 auto", padding: "0 48px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: footerText }} className="font-[family-name:var(--font-inter)]">

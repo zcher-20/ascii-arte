@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
-const ASCII_CHARS = "#%*+=-:. ";
-const CHARS_LEN = ASCII_CHARS.length;
+const ASCII_CHARS_NORMAL = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
+const ASCII_CHARS_INVERTED = ASCII_CHARS_NORMAL.split("").reverse().join("");
 
 interface AsciiPixel {
   char: string;
@@ -12,17 +12,20 @@ interface AsciiPixel {
   b: number;
 }
 
-function imageToAscii(
-  img: HTMLImageElement,
-  maxWidth: number,
-): { grid: AsciiPixel[][]; width: number; height: number } {
+function clamp(v: number, min: number, max: number) {
+  return v < min ? min : v > max ? max : v;
+}
+
+function imageToAscii(img: HTMLImageElement, density: number): AsciiPixel[][] {
+  const chars = ASCII_CHARS_NORMAL;
+  const charInterval = chars.length / 256;
+
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
 
-  const charAspect = 0.6;
-  const scale = Math.min(maxWidth / img.width, 1);
-  const w = Math.floor(img.width * scale);
-  const h = Math.floor(img.height * scale * charAspect);
+  const scaleFactor = Math.min(density / img.width, 1);
+  const w = Math.floor(img.width * scaleFactor);
+  const h = Math.floor(img.height * scaleFactor * 0.6);
 
   canvas.width = w;
   canvas.height = h;
@@ -30,7 +33,6 @@ function imageToAscii(
 
   const imageData = ctx.getImageData(0, 0, w, h);
   const pixels = imageData.data;
-
   const grid: AsciiPixel[][] = [];
 
   for (let y = 0; y < h; y++) {
@@ -40,63 +42,178 @@ function imageToAscii(
       const r = pixels[i];
       const g = pixels[i + 1];
       const b = pixels[i + 2];
-      const intensity = (r + g + b) / 3;
-      const charIndex = Math.floor((intensity / 255) * (CHARS_LEN - 1));
-      row.push({ char: ASCII_CHARS[charIndex], r, g, b });
+      const brightness = Math.floor(r / 3 + g / 3 + b / 3);
+      const charIndex = Math.min(Math.floor(brightness * charInterval), chars.length - 1);
+      row.push({ char: chars[charIndex], r, g, b });
     }
     grid.push(row);
   }
 
-  return { grid, width: w, height: h };
+  return grid;
 }
 
-function renderToCanvas(
-  grid: AsciiPixel[][],
-  fontSize: number,
-): HTMLCanvasElement {
+function renderBaseCanvas(grid: AsciiPixel[][], fontSize: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
-  const charW = fontSize * 0.6;
-  const charH = fontSize;
+  const cw = Math.ceil(fontSize * 0.65);
+  const ch = Math.ceil(fontSize * 1.1);
 
-  canvas.width = grid[0].length * charW;
-  canvas.height = grid.length * charH;
+  canvas.width = grid[0].length * cw;
+  canvas.height = grid.length * ch;
 
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.font = `${fontSize}px monospace`;
   ctx.textBaseline = "top";
 
-  const bgLift = 0.3;
-  const fgLift = 0.15;
   for (let y = 0; y < grid.length; y++) {
     for (let x = 0; x < grid[y].length; x++) {
       const p = grid[y][x];
-      const br = Math.min(255, Math.round(p.r + (255 - p.r) * bgLift));
-      const bg = Math.min(255, Math.round(p.g + (255 - p.g) * bgLift));
-      const bb = Math.min(255, Math.round(p.b + (255 - p.b) * bgLift));
-      ctx.fillStyle = `rgb(${br},${bg},${bb})`;
-      ctx.fillRect(x * charW, y * charH, charW, charH);
-
-      const fr = Math.min(255, Math.round(p.r + (255 - p.r) * fgLift));
-      const fg = Math.min(255, Math.round(p.g + (255 - p.g) * fgLift));
-      const fb = Math.min(255, Math.round(p.b + (255 - p.b) * fgLift));
-      ctx.fillStyle = `rgb(${fr},${fg},${fb})`;
-      ctx.fillText(p.char, x * charW, y * charH);
+      ctx.fillStyle = `rgb(${p.r},${p.g},${p.b})`;
+      ctx.fillText(p.char, x * cw, y * ch);
     }
   }
 
   return canvas;
 }
 
+function renderBaseCanvasInverted(grid: AsciiPixel[][], fontSize: number): HTMLCanvasElement {
+  const chars = ASCII_CHARS_INVERTED;
+  const charInterval = chars.length / 256;
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d")!;
+  const cw = Math.ceil(fontSize * 0.65);
+  const ch = Math.ceil(fontSize * 1.1);
+
+  canvas.width = grid[0].length * cw;
+  canvas.height = grid.length * ch;
+
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.font = `${fontSize}px monospace`;
+  ctx.textBaseline = "top";
+
+  for (let y = 0; y < grid.length; y++) {
+    for (let x = 0; x < grid[y].length; x++) {
+      const p = grid[y][x];
+      const brightness = Math.floor(p.r / 3 + p.g / 3 + p.b / 3);
+      const charIndex = Math.min(Math.floor(brightness * charInterval), chars.length - 1);
+      ctx.fillStyle = `rgb(${p.r},${p.g},${p.b})`;
+      ctx.fillText(chars[charIndex], x * cw, y * ch);
+    }
+  }
+
+  return canvas;
+}
+
+function Slider({ label, value, min, max, step, onInput, fg }: {
+  label: string; value: number; min: number; max: number; step: number;
+  onInput: (v: number) => void; fg: string;
+}) {
+  return (
+    <div style={{ flex: 1, minWidth: "80px" }}>
+      <div style={{ fontSize: "12px", color: fg, opacity: 0.6, marginBottom: "4px" }}>
+        {label}
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        defaultValue={value}
+        onInput={(e) => onInput(parseFloat(e.currentTarget.value))}
+        style={{ width: "100%", accentColor: "#ffd4de", cursor: "pointer", height: "3px" }}
+      />
+    </div>
+  );
+}
+
+function Toggle({ label, value, onChange, fg, border }: {
+  label: string; value: boolean; onChange: (v: boolean) => void; fg: string; border: string;
+}) {
+  return (
+    <button
+      onClick={() => onChange(!value)}
+      className="font-[family-name:var(--font-inter)]"
+      style={{
+        background: "none",
+        border: `1px solid ${border}`,
+        padding: "4px 10px",
+        cursor: "pointer",
+        fontSize: "11px",
+        color: fg,
+        opacity: value ? 0.8 : 0.4,
+        transition: "opacity 0.2s",
+        textAlign: "center",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}: {value ? "on" : "off"}
+    </button>
+  );
+}
+
 export default function AsciiGenerator({ light = false }: { light?: boolean }) {
-  const [result, setResult] = useState<HTMLCanvasElement | null>(null);
+  const [hasImage, setHasImage] = useState(false);
   const [originalSrc, setOriginalSrc] = useState<string | null>(null);
-  const [imgRatio, setImgRatio] = useState<number>(0);
   const [processing, setProcessing] = useState(false);
+  const [density, setDensity] = useState(80);
+  const [invert, setInvert] = useState(false);
+  const [bgBlack, setBgBlack] = useState(true);
+
   const fileRef = useRef<HTMLInputElement>(null);
-  const previewRef = useRef<HTMLDivElement>(null);
+  const displayRef = useRef<HTMLCanvasElement>(null);
+  const origImgRef = useRef<HTMLImageElement>(null);
+  const loadedImgRef = useRef<HTMLImageElement | null>(null);
+  const gridRef = useRef<AsciiPixel[][] | null>(null);
+  const baseCacheRef = useRef<HTMLCanvasElement | null>(null);
+  const baseCacheInvRef = useRef<HTMLCanvasElement | null>(null);
+  const brightnessRef = useRef(100);
+  const contrastRef = useRef(100);
+  const saturationRef = useRef(100);
+  const rafRef = useRef<number>(0);
 
   const fg = light ? "#222" : "#fff";
   const border = light ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.1)";
+
+  const requestDraw = useCallback(() => {
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      const display = displayRef.current;
+      const base = invert ? baseCacheInvRef.current : baseCacheRef.current;
+      if (!display || !base) return;
+
+      const ctx = display.getContext("2d")!;
+      display.width = base.width;
+      display.height = base.height;
+
+      ctx.clearRect(0, 0, display.width, display.height);
+      ctx.fillStyle = bgBlack ? "#000" : "#fff";
+      ctx.fillRect(0, 0, display.width, display.height);
+
+      ctx.filter = `brightness(${brightnessRef.current}%) contrast(${contrastRef.current}%) saturate(${saturationRef.current}%)`;
+      ctx.drawImage(base, 0, 0);
+      ctx.filter = "none";
+    });
+  }, [invert, bgBlack]);
+
+  const rebuildCache = useCallback((img: HTMLImageElement, dens: number) => {
+    const grid = imageToAscii(img, dens);
+    gridRef.current = grid;
+    baseCacheRef.current = renderBaseCanvas(grid, 14);
+    baseCacheInvRef.current = renderBaseCanvasInverted(grid, 14);
+    requestDraw();
+  }, [requestDraw]);
+
+  useEffect(() => {
+    requestDraw();
+  }, [invert, bgBlack, requestDraw]);
+
+  useEffect(() => {
+    if (loadedImgRef.current) {
+      rebuildCache(loadedImgRef.current, density);
+    }
+  }, [density, rebuildCache]);
 
   const handleFile = useCallback((file: File) => {
     setProcessing(true);
@@ -106,26 +223,15 @@ export default function AsciiGenerator({ light = false }: { light?: boolean }) {
       setOriginalSrc(src);
       const img = new Image();
       img.onload = () => {
-        setImgRatio(img.width / img.height);
-        const { grid } = imageToAscii(img, 160);
-        const output = renderToCanvas(grid, 6);
-        setResult(output);
+        loadedImgRef.current = img;
+        rebuildCache(img, density);
+        setHasImage(true);
         setProcessing(false);
-
-        setTimeout(() => {
-          if (previewRef.current) {
-            previewRef.current.innerHTML = "";
-            previewRef.current.appendChild(output);
-            output.style.width = "100%";
-            output.style.height = "auto";
-            output.style.display = "block";
-          }
-        }, 0);
       };
-      img.src = e.target?.result as string;
+      img.src = src;
     };
     reader.readAsDataURL(file);
-  }, []);
+  }, [density, rebuildCache]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -134,15 +240,16 @@ export default function AsciiGenerator({ light = false }: { light?: boolean }) {
   }, [handleFile]);
 
   const download = () => {
-    if (!result) return;
+    const display = displayRef.current;
+    if (!display) return;
     const link = document.createElement("a");
     link.download = "ascii-art.png";
-    link.href = result.toDataURL("image/png");
+    link.href = display.toDataURL("image/png");
     link.click();
   };
 
   return (
-    <div style={{ maxWidth: "600px", margin: "0 auto", padding: "0 24px" }}>
+    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 24px" }}>
       <div
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
@@ -174,26 +281,43 @@ export default function AsciiGenerator({ light = false }: { light?: boolean }) {
         />
       </div>
 
-      {result && (
+      {hasImage && (
         <div style={{ marginTop: "24px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "16px",
+              alignItems: "center",
+              padding: "12px 0",
+              borderBottom: `1px solid ${border}`,
+              marginBottom: "16px",
+              flexWrap: "wrap",
+            }}
+            className="font-[family-name:var(--font-inter)]"
+          >
+            <Slider label="Density" value={80} min={40} max={200} step={10}
+              onInput={(v) => setDensity(v)} fg={fg} />
+            <Slider label="Brightness" value={100} min={50} max={200} step={5}
+              onInput={(v) => { brightnessRef.current = v; requestDraw(); }} fg={fg} />
+            <Slider label="Contrast" value={100} min={50} max={200} step={5}
+              onInput={(v) => { contrastRef.current = v; requestDraw(); }} fg={fg} />
+            <Slider label="Saturation" value={100} min={0} max={200} step={5}
+              onInput={(v) => { saturationRef.current = v; requestDraw(); }} fg={fg} />
+            <Toggle label="Invert" value={invert} onChange={setInvert} fg={fg} border={border} />
+            <Toggle label="Bg" value={bgBlack} onChange={setBgBlack} fg={fg} border={border} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", alignItems: "center" }}>
             {originalSrc && (
-              <div style={{ border: `1px solid ${border}`, overflow: "hidden", aspectRatio: `${imgRatio}` }}>
-                <img src={originalSrc} alt="Original" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              <div style={{ border: `1px solid ${border}`, overflow: "hidden", padding: "2.5%" }}>
+                <img ref={origImgRef} src={originalSrc} alt="Original" style={{ width: "100%", display: "block" }} />
               </div>
             )}
-            <div
-              ref={previewRef}
-              style={{
-                border: `1px solid ${border}`,
-                overflow: "hidden",
-                aspectRatio: `${imgRatio}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            />
+            <div style={{ border: `1px solid ${border}`, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <canvas ref={displayRef} style={{ maxWidth: "100%", maxHeight: "100%", display: "block" }} />
+            </div>
           </div>
+
           <div style={{ textAlign: "center", marginTop: "16px" }}>
             <button
               onClick={download}
